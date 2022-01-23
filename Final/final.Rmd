@@ -1,0 +1,267 @@
+---
+title: "Appendix"
+author: "Jiawei Meng"
+output: pdf_document
+---
+__Question 1: Diarrheal Prevalence__
+```{r}
+### import data
+diarrhea <- read.csv ("/Users/mengjiawei/Desktop/materials/2020fall/525/Final/diarrhea.csv",header=T)
+
+# check observations
+dim(diarrhea)
+
+# check missing data
+summary(diarrhea)
+
+# the number of school in the data
+length(unique(diarrhea$School))
+
+# the number of observations in each school
+table(diarrhea$School)
+
+### descriptive statistics
+diarrhea$Sex<-factor(diarrhea$Sex,levels=c(0,1),
+                    labels = c("boy","girl"))
+diarrhea$treat<-factor(diarrhea$treat,levels=c(0,1),
+                    labels = c("no","yes"))
+diarrhea$Z<-factor(diarrhea$Z,levels=c(0,1),
+                    labels = c("no","yes"))
+diarrhea$Sex
+library(table1)
+label(diarrhea$Sex)<-"Student’s sex"
+label(diarrhea$School)<-"School ID"
+label(diarrhea$Age)<-"Student’s age at the time of survey"
+label(diarrhea$treat)<-"the presence of a school-level program to improve sanitation and hygiene"
+label(diarrhea$Z)<-"whether the child had diarrhea over the last three days"
+table1(~ Sex + Age + Z |treat, data = diarrhea)
+
+diarrhea$treat
+library(tableone)
+listvars = c("Sex", "Age","Z")
+
+catvars = c("Sex","Z")
+diarrhea$treat
+table1 = CreateTableOne(vars=listvars, data=diarrhea, factorVars = catvars, includeNA = T, strata = "treat")
+tbl=print(table1, nonnormal=c("Sex","Z"))
+knitr::kable(tbl)
+install.packages("compareGroups")
+library(compareGroups)
+restab <- createTable(tbl, digits = c(p14 = 0, hormo=1), type = 1, 
+                      hide.no = "no", show.n = TRUE)
+```
+
+```{R}
+# instal required package
+library(gee)
+library(geepack)
+# load data and factor variable
+diarrhea <- read.csv ("/Users/mengjiawei/Desktop/2020fall/525/Final/diarrhea.csv",header=T)
+
+diarrhea$Sex<-factor(diarrhea$Sex,levels=c(0,1),
+                    labels = c("boy","girl"))
+diarrhea$treat<-factor(diarrhea$treat,levels=c(0,1),
+                    labels = c("no","yes"))
+# check interaction
+#treat
+fittrt = gee(Z~treat ,family = binomial(link = "logit"),data=diarrhea, 
+                id=School, corstr = "exchangeable")
+2* pnorm(abs(coef(summary(fittrt))[,5]), lower.tail = FALSE)
+
+#age
+fitage = gee(Z~treat + Age,family = binomial(link = "logit"),data=diarrhea, 
+                id=School, corstr = "exchangeable")
+2* pnorm(abs(coef(summary(fitage))[,5]), lower.tail = FALSE)
+
+fitagei = gee(Z~treat * Age,family = binomial(link = "logit"),data=diarrhea, 
+                 id=School, corstr = "exchangeable")
+2* pnorm(abs(coef(summary(fitagei))[,5]), lower.tail = FALSE)
+
+#sex
+fitsex = gee(Z~ treat + Sex,family = binomial(link = "logit"),data=diarrhea, 
+                id=School, corstr = "exchangeable")
+2* pnorm(abs(coef(summary(fitsex))[,5]), lower.tail = FALSE)
+fitsexi = gee(Z~treat * Sex,family = binomial(link = "logit"),data=diarrhea, 
+                 id=School, corstr = "exchangeable")
+2* pnorm(abs(coef(summary(fitsexi))[,5]), lower.tail = FALSE)
+
+#two inter
+fittwo = gee(Z~ treat * Sex + treat* Age,family = binomial(link = "logit"),
+                data=diarrhea, id=School, corstr = "exchangeable")
+summary(fittwo)
+2* pnorm(abs(coef(summary(fittwo))[,5]), lower.tail = FALSE)
+
+#final
+fit1 = gee(Z ~ treat + Sex  + treat * Sex, family = binomial(link = "logit"),
+           data=diarrhea, id=School, corstr = "exchangeable")
+summary(fit1)
+2* pnorm(abs(coef(summary(fit1))[,5]), lower.tail = FALSE)
+
+## the estimate and se from above output
+est = c(-1.664,-2.505, 0.191,-1.021)
+se = c(0.0982,0.2317, 0.0985,0.3831)
+
+## treatgirl
+est_tg = est[2]+est[4]
+se_tg = sqrt((se[2])^2 + 2*se[2]*se[4]*(1) +(se[4])^2)
+
+# OR for treat in boy
+ORb = exp(est[2])
+lCIb = exp(est[2]-1.96*se[2])
+uCIb = exp(est[2]+1.96*se[2])
+b<- cbind(ORb,lCIb, uCIb)
+# OR for treat in girl
+ORg = exp(est_tg)
+lCIg = exp(est_tg-1.96*se_tg)
+uCIg = exp(est_tg+1.96*se_tg)
+g<- cbind(ORg,lCIg, uCIg)
+#OR table
+resu<-rbind(b,g) 
+resu
+rownames(resu) = c("treatboy","treatgirl")
+colnames(resu) = c("est","lower","upper")
+round(resu,3)
+```
+
+
+\
+__Question 2: Chlamydia Incidence__\
+
+```{r}
+cdc <- get(load('/Users/mengjiawei/Desktop/2020fall/525/Final/CDC.RData'))
+dim(cdc)
+### descriptive statistics
+library(table1)
+label(cdc$PBlack2000)<-"Percent black population from Census 2000"
+label(cdc$PHisp2000)<-"Percent Hispanic population from Census 2000"
+label(cdc$Cases)<-"Reported cases of chlamydia"
+label(cdc$HHIncome2000)<-"Median household income (in $1,000) from Census 2000"
+label(cdc$Population)<-"At-risk population size"
+
+library(tidyverse)
+#check duplicate and missing
+nrow(cdc)
+cdc = cdc %>% 
+  distinct() %>%
+  filter(!is.na(Cases))
+nrow(cdc)
+
+#find number of county enrolled
+length(unique(cdc$FIPS)) #131
+
+#check year
+unique(cdc$Year)
+
+# descriptive statistics
+# table the income, black population, hispanic population in county level
+table1(~ HHIncome2000 + PBlack2000 + PHisp2000, data = cdc 
+            %>% arrange(FIPS,Year) %>% filter(!duplicated(FIPS)))
+cdcf1 = cdc %>%
+  group_by(Year) %>%
+  summarise(nid = n())
+table1(~nid,data=cdcf1)
+
+#check the number of visit for each county
+cdcf2 = cdc %>% 
+  group_by(FIPS) %>% 
+  summarise(nvisit=n())
+table1(~ nvisit , data=cdcf2)
+
+#fit model
+#center year
+cdc$Year <- cdc$Year - min(cdc$Year)
+
+#generate rate
+cdc$Rate <- cdc$Cases/cdc$Population
+
+
+library(lmerTest)
+#fit model
+fit.ran = lmer(Rate~(1|FIPS)  + Year + HHIncome2000 + PBlack2000 + PHisp2000,
+                data=cdc)
+summary(fit.ran)
+
+fit.ran2 = lmer(Rate~(1|FIPS)  + Year + HHIncome2000 + PBlack2000,
+                data=cdc)
+summary(fit.ran2)
+```
+
+
+__Question 3: Power Calculations__\
+a)Regression model$y_{ij} =\mu + \theta_i + \beta_1\times intervention_{ij}+\epsilon_{ij}$. Code the intervention term: 0 = control, 1 = intervention, for each subject in each group, there are 3 observations.\
+
+b)
+```{r}
+## Define model parameters:
+m = 250
+n = 3
+rho = 0.3
+tau2=12^2*rho
+sigma2=12^2-tau2
+alpha = 0.05
+
+## A sequence of effect sizes (slope) to calculate power for
+effs = seq(0, 5, by = 0.1)
+
+## Set up design matrix
+X = cbind (rep (1,m*3*n), c(rep(1, m*n), rep(c(0,1,1), m),
+                            rep(c(0,0,1), m)))
+
+## Set up covariance matrix
+R0 = matrix(tau2,n,n)
+diag(R0) <- sigma2 + tau2
+V <- kronecker(diag(1,m*3), R0)
+
+##Covariance of beta_hat and standard errors
+VCOV = solve (t(X)%*%solve(V)%*%X)
+SE = sqrt (diag (VCOV))
+
+## From Slide 10
+power =  pnorm ( qnorm (alpha/2) + abs(effs)/SE[2])
+plot (power~effs, type = "l", lwd = 3, xlab = "Effect Size (Slope)")
+abline(h = 0.8, col = 2, lty= 3)
+MDE = (qnorm(0.8)-qnorm(alpha/2))*SE[2]
+MDE
+```
+
+The minimum detectable effect size between intervention and control with 80% power and a two-sided type I error rate of 0.05 is 1.4.\
+
+c)
+If the investigator interested in estimating how the duration of the intervention may impact its effect, we will create new variable ‘time’ to indicate the duration of intervention for that observation. Code the intervention term: 0 = control, 1 = intervention, for each subject, there are 3 observations. Code the time term: 0 = intervention duration is 0 year, 1= intervention duration is 1 year, 2 = intervention duration is 2 year, 3 = intervention duration is 3 year. 
+Regression model$y_{ij} =\mu + \theta_i + \beta_1\times intervention_{ij}+ \beta_2 \times time_{ij} +\epsilon_{ij}$. \
+
+```{r}
+## Define model parameters:
+m = 250
+n = 3
+rho = 0.3
+tau2=12^2*rho
+sigma2=12^2-tau2
+alpha = 0.05
+
+## A sequence of effect sizes (slope) to calculate power for
+effs = seq(0, 5, by = 0.1)
+
+## Set up design matrix
+X = cbind (rep (1,m*3*n), c(rep(1, m*n), rep(c(0,1,1), m),
+                            rep(c(0,0,1), m)), c(rep(c(1,2,3), m), rep(c(0,1,2), m),
+                            rep(c(0,0,1), m)))
+
+## Set up covariance matrix
+R0 = matrix(tau2,n,n)
+diag(R0) <- sigma2 + tau2
+V <- kronecker(diag(1,m*3), R0)
+
+## Covariance of beta_hat and standard errors
+VCOV = solve (t(X)%*%solve(V)%*%X)
+SE = sqrt (diag (VCOV))
+
+## From Slide 10
+power = pnorm ( qnorm (alpha/2) + abs(effs)/SE[2])
+plot (power~effs, type = "l", lwd = 3, xlab = "Effect Size (Slope)")
+abline(h = 0.8, col = 2, lty= 3)
+MDE = (qnorm(0.8)-qnorm(alpha/2))*SE[2]
+MDE
+```
+
+The minimum detectable effect size between treatment and placebo with 80% power and a two-sided type I error rate of 0.05 is 2.06.\
